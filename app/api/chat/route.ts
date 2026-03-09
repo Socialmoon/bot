@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { openrouter, MODELS } from "@/lib/openrouter";
+import { nvidia, NVIDIA_MODELS } from "@/lib/openrouter";
 
 const MAX_MESSAGES = 50;      // prevent token abuse
 const MAX_CONTENT_LENGTH = 4000; // chars per message
@@ -163,18 +163,45 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const response = await openrouter.chat.completions.create({
-      model: MODELS.standard,
-      max_tokens: 1000,
+    if (!process.env.NVIDIA_API_KEY) {
+      return NextResponse.json({ error: "NVIDIA_API_KEY is not configured." }, { status: 503 });
+    }
+
+    const stream = await nvidia.chat.completions.create({
+      model: NVIDIA_MODELS.reasoning,
+      max_tokens: 500,
+      stream: true,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         ...sanitized,
       ],
     });
 
-    const message = response.choices[0]?.message?.content ?? "Sorry, something went wrong.";
-    return NextResponse.json({ message });
-  } catch {
-    return NextResponse.json({ error: "AI service unavailable. Please try again." }, { status: 503 });
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const token = chunk.choices[0]?.delta?.content ?? "";
+            if (token) controller.enqueue(encoder.encode(token));
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: { "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" },
+    });
+  } catch (err: unknown) {
+    let message = err instanceof Error ? err.message : String(err);
+    // OpenAI SDK wraps API errors — extract the full body if available
+    if (err && typeof err === "object" && "status" in err) {
+      const apiErr = err as { status?: number; message?: string; error?: unknown };
+      message = `HTTP ${apiErr.status}: ${JSON.stringify(apiErr.error ?? apiErr.message)}`;
+    }
+    console.error("[/api/chat] NVIDIA error:", message);
+    return NextResponse.json({ error: "AI service unavailable. Please try again.", detail: message }, { status: 503 });
   }
 }

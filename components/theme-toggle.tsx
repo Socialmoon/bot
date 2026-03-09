@@ -40,7 +40,7 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
-  if (!mounted) return <div className="w-[120px] h-8" />;
+  if (!mounted) return <div className="w-8 sm:w-[120px] h-8" />;
 
   return (
     <div className="flex items-center rounded-lg p-0.5 gap-0.5" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
@@ -49,14 +49,14 @@ export function ThemeToggle() {
           key={opt.value}
           onClick={() => setTheme(opt.value)}
           title={opt.label}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
             theme === opt.value
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-[var(--fg-muted)] hover:text-[var(--fg)]"
           }`}
         >
           {opt.icon}
-          <span>{opt.label}</span>
+          <span className="hidden sm:inline">{opt.label}</span>
         </button>
       ))}
     </div>
